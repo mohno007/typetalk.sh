@@ -2,6 +2,10 @@
 Typetalk.sh is a simple shell script that allow you to post message to [Typetalk](https://www.typetalk.com/).
 
 ## How to install
+`curl -L -o typetalk https://raw.githubusercontent.com/mohno007/typetalk.sh/master/typetalk && chmod +x typetalk`
+
+Or
+
 1. Clone this repo: `git clone https://github.com/mohno007/typetalk.sh.git`
 1. (If you need) Create a bin directory: `mkdir -p $HOME/.local/bin/`
 1. Create a symbolic link: `ln -s PATH_TO_typetalk.sh/typetalk $HOME/.local/bin/typetalk`
