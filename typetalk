@@ -1,0 +1,132 @@
+#!/bin/sh
+# Usage: typetalk [-m MESSAGE] [-t TALK] [MESSAGE_FILE]
+#
+# Options:
+#    -m MESSAGE   a message to post
+#    -t TALK      talk id to attach
+
+# TYPETALK_TOPIC=123456
+# TYPETALK_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+: ${ACCESSTOKEN_PATH:="${HOME}/.typetalk_config"}
+
+eecho() { echo "$*" > /dev/stderr; }
+
+error() { eecho "Error: $*"; exit 1; }
+
+command_exists() { command -v "$1" 1>/dev/null 2>&1; }
+
+## Arguments:
+##   commands... : required commands
+##
+## Return:
+##   returns 0 if all commands are found, exit 1 if not
+##
+require_commands() {
+	(
+		missing=0
+		for cmd; do
+			if ! command_exists "$cmd"; then
+				missing=1
+				eecho "command missing - '$cmd'"
+			fi
+		done
+
+		if [ "$missing" -gt 0 ]; then
+			eecho
+			eecho "To run this script, please install above commands."
+			return 1
+		fi
+	) || exit 1
+}
+
+print_help() {
+	sed -n '2,/^$/s/^# //p' "$0"
+}
+
+# If there are configured environment variables, exit with 0
+config_exist() {
+	[ -n "${TYPETALK_TOPIC}" -a -n "${TYPETALK_TOKEN}" ]
+}
+
+format_json() {
+	if command_exists jq; then
+		jq .
+	else
+		cat
+	fi
+}
+
+load_config() {
+	if config_exist; then
+		return
+	fi
+
+	if ! [ -f "${ACCESSTOKEN_PATH}" ]; then
+		error "No token specified. Configure an API token by configuration file or environment variables"
+	fi
+
+	if ! find "${ACCESSTOKEN_PATH}" -type f -perm 600 -quit 1>/dev/null 2>&1; then
+		error "A configuration SHOULD NOT be readable by other user. Execute \`chmod 600 \"${ACCESSTOKEN_PATH}\"\`."
+	fi
+
+	. "${ACCESSTOKEN_PATH}"
+}
+
+###
+
+require_commands find sed grep cat wc printf curl
+
+while getopts "hm:f:t:" option; do
+	case "${option}" in
+	h)
+		print_help
+		exit 1
+		;;
+	m)
+		message="$OPTARG"
+		if ! [ "`printf -- "%s" "${message}" | wc -m`" -le 4000 ]; then
+			error "Too long message. A length of message should be <= 4000."
+		fi
+		;;
+	t)
+		talk="$OPTARG"
+		if ! echo "$talk" | grep -q '^[0-9]\+$'; then
+			error "Invalid format for talk: ${talk}"
+		fi
+		;;
+	f)
+		# Reserved for file upload
+		eecho "currently not supported, ignored."
+		;;
+	\?)
+		exit 1
+		;;
+	esac
+done
+
+shift $(($OPTIND - 1))
+
+load_config
+
+if [ -z "$message" ]; then
+	if [ -n "$1" ]; then
+		message="`cat -- "$1"`" ||
+			exit 1
+	else
+		message="`cat -`" ||
+			exit 1
+	fi
+fi
+
+params=""
+
+if [ -n "$talk" ]; then
+	params="$params --data-urlencode talkIds[]=$talk"
+fi
+
+curl --silent \
+	--data-urlencode 'message='"$message" \
+	--data-urlencode 'typetalkToken='"${TYPETALK_TOKEN}" \
+	$params \
+	'https://typetalk.com/api/v1/topics/'"${TYPETALK_TOPIC}" |
+	format_json
