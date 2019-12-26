@@ -45,6 +45,9 @@ date | typetalk
 # specifying content from file
 typetalk "some_file"
 
+# specifying config via environment variables
+TYPETALK_TOPIC=1234 TYPETALK_TOKEN="xxxxxxxxxxxxxxx" typetalk -m "via envvar"
+
 # show help
 typetalk -h
 ```
