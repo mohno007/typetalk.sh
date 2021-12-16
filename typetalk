@@ -1,5 +1,5 @@
 #!/bin/sh
-# Usage: typetalk [-m MESSAGE] [-t TALK] [MESSAGE_FILE]
+# Usage: typetalk [-m MESSAGE] [-t TALK] [MESSAGE_FILE...]
 #
 # Options:
 #    -m MESSAGE   a message to post
@@ -7,7 +7,9 @@
 
 # TYPETALK_TOPIC=123456
 # TYPETALK_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
 : ${ACCESSTOKEN_PATH:="${HOME}/.typetalk_config"}
+MAX_MESSAGE_LENGTH="4000"
 
 eecho() { echo "$*" > /dev/stderr; }
 
@@ -65,11 +67,19 @@ load_config() {
 		error "No token specified. Configure an API token by configuration file or environment variables"
 	fi
 
-	if ! find "${ACCESSTOKEN_PATH}" -type f -perm 600 -quit 1>/dev/null 2>&1; then
-		error "A configuration SHOULD NOT be readable by other user. Execute \`chmod 600 \"${ACCESSTOKEN_PATH}\"\`."
+	if [ -z "`find "${ACCESSTOKEN_PATH}" -type f -perm 600 -print`" ]; then
+		error "A configuration SHOULD NOT be readable or writable by other user. Execute \`chmod 600 \"${ACCESSTOKEN_PATH}\"\`."
 	fi
 
 	. "${ACCESSTOKEN_PATH}"
+}
+
+obtain_message() {
+	if [ "$#" -ge 1 ]; then
+		cat -- "$@"
+	else
+		cat
+	fi
 }
 
 ###
@@ -84,9 +94,6 @@ while getopts "hm:f:t:" option; do
 		;;
 	m)
 		message="$OPTARG"
-		if ! [ "`printf -- "%s" "${message}" | wc -m`" -le 4000 ]; then
-			error "Too long message. A length of message should be <= 4000."
-		fi
 		;;
 	t)
 		talk="$OPTARG"
@@ -108,14 +115,15 @@ shift $(($OPTIND - 1))
 
 load_config
 
-if [ -z "$message" ]; then
-	if [ -n "$1" ]; then
-		message="`cat -- "$1"`" ||
-			exit 1
-	else
-		message="`cat -`" ||
-			exit 1
-	fi
+if [ -z "${message+x}" ]; then
+	message="`obtain_message | head -c"$(($MAX_MESSAGE_LENGTH * 4))"`"
+fi
+
+message_length="`printf -- "%s" "${message}" | wc -m`"
+if ! [ "$message_length" -gt 0 ]; then
+	error "message is empty."
+elif ! [ "$message_length" -le "$MAX_MESSAGE_LENGTH" ]; then
+	error "Too long message. A length of message should be <= $MAX_MESSAGE_LENGTH."
 fi
 
 params=""
